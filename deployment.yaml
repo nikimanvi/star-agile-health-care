@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: Healthcare
-        image: niki/healthcare:latest
+        image: nikithamanvi/healthcare:latest
         ports:
         - containerPort: 8080
         imagePullPolicy: Always
