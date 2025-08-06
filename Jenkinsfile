@@ -1,59 +1,87 @@
 pipeline {
-    agent { label 'Jenkins_Slave' }
+    agent { label 'maven_slave' }  // Slave node with Maven and Docker installed
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('docker_CI')
+        DOCKER_IMAGE = "niki/healthcare:${BUILD_NUMBER}"
     }
 
     stages {
-        stage('SCM Checkout') {
+        stage('Checkout Code') {
             steps {
-                echo "Perform SCM Checkout"
-                git 'https://github.com/Deepakd106/star-agile-health-care.git'
+                git 'https://github.com/nikimanvi/star-agile-health-care.git'
             }
         }
 
-        stage('Application Build') {
+        stage('Build with Maven') {
             steps {
-                echo "Perform Application Build"
-                sh 'mvn clean package'
+                sh 'mvn clean install'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Build') {
             steps {
-                sh 'docker version'
-                sh "docker build -t niki/healthcare:${BUILD_NUMBER} ."
-                sh "docker image list"
-                sh "docker tag niki/healthcare:${BUILD_NUMBER} niki/healthcare:latest"
+                echo "Building Docker Image: ${DOCKER_IMAGE}"
+                sh """
+                    docker build -t ${DOCKER_IMAGE} .
+                    docker tag ${DOCKER_IMAGE} niki/healthcare:latest
+                    docker image ls
+                """
             }
         }
 
         stage('Login to DockerHub') {
             steps {
-                sh "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin"
+                echo 'Logging into DockerHub...'
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerloginid',
+                    usernameVariable: 'DOCKERHUB_CREDENTIALS_USR',
+                    passwordVariable: 'DOCKERHUB_CREDENTIALS_PSW')]) {
+                        
+                    sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                }
             }
         }
 
-        stage('Publish to Docker Registry') {
+        stage('Publish the Image to DockerHub') {
             steps {
-                sh "docker push niki/healthcare:${BUILD_NUMBER}"
-                sh "docker push niki/healthcare:latest"
+                echo "Publishing Docker Image: ${DOCKER_IMAGE}"
+                sh """
+                    docker push ${DOCKER_IMAGE}
+                    docker push niki/healthcare:latest
+                """
             }
         }
 
-        stage('Deploy to Kubernetes Cluster') {
+        stage('Deploy to EKS') {
             steps {
                 script {
-                    // Optionally use sshPublisher here if deploying remotely
-                    sh '''
-                        kubectl apply -f kubedeploy_Healthcare_Project.yaml
-                        kubectl set image deployment/myproject-healthcare medicure=niki/healthcare:${BUILD_NUMBER}
-                        kubectl rollout status deployment/myproject-healthcare
-                    '''
+                    sshPublisher(
+                        publishers: [
+                            sshPublisherDesc(
+                                configName: 'eks-master',
+                                transfers: [
+                                    sshTransfer(
+                                        sourceFiles: 'deployment.yaml,service.yaml',
+                                        removePrefix: '',
+                                        remoteDirectory: '',
+                                        remoteDirectorySDF: false,
+                                        flatten: true,
+                                        execCommand: '''
+                                            mkdir -p /home/devopsadmin/deploy &&
+                                            mv deployment.yaml service.yaml /home/devopsadmin/deploy/ &&
+                                            kubectl apply -f /home/devopsadmin/deploy/deployment.yaml &&
+                                            kubectl apply -f /home/devopsadmin/deploy/service.yaml
+                                        ''',
+                                        execTimeout: 120000
+                                    )
+                                ],
+                                usePromotionTimestamp: false,
+                                verbose: true
+                            )
+                        ]
+                    )
                 }
             }
         }
     }
 }
-
