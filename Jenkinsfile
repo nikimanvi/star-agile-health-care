@@ -2,7 +2,7 @@ pipeline {
     agent { label 'maven_slave' }  // Slave node with Maven and Docker installed
 
     environment {
-        DOCKER_IMAGE = "niki/healthcare:${BUILD_NUMBER}"
+        DOCKER_IMAGE = "nikithamanvi/healthcare:${BUILD_NUMBER}"
     }
 
     stages {
@@ -23,7 +23,7 @@ pipeline {
                 echo "Building Docker Image: ${DOCKER_IMAGE}"
                 sh """
                     docker build -t ${DOCKER_IMAGE} .
-                    docker tag ${DOCKER_IMAGE} niki/healthcare:latest
+                    docker tag ${DOCKER_IMAGE} nikithamanvi/healthcare:latest
                     docker image ls
                 """
             }
@@ -47,7 +47,7 @@ pipeline {
                 echo "Publishing Docker Image: ${DOCKER_IMAGE}"
                 sh """
                     docker push ${DOCKER_IMAGE}
-                    docker push niki/healthcare:latest
+                    docker push nikithamanvi/healthcare:latest
                 """
             }
         }
