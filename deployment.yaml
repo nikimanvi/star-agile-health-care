@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: Healthcare-deployment
+  labels:
+    app: Healthcare
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: Healthcare
+  template:
+    metadata:
+      labels:
+        app: Healthcare
+    spec:
+      containers:
+      - name: Healthcare
+        image: niki/healthcare:latest
+        ports:
+        - containerPort: 8080
+        imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: Healthcare-service
+spec:
+  selector:
+    app: Healthcare
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: NodePort  # Change to LoadBalancer if using AWS EKS or other cloud providers
